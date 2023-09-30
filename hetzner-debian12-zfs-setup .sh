@@ -38,10 +38,10 @@ v_suitable_disks=()
 c_deb_packages_repo=https://deb.debian.org/debian
 c_deb_security_repo=https://deb.debian.org/debian-security
 
-c_default_zfs_arc_max_mb=250
+c_default_zfs_arc_max_mb=16384
 c_default_bpool_tweaks="-o ashift=12 -O compression=lz4"
 c_default_rpool_tweaks="-o ashift=12 -O acltype=posixacl -O compression=zstd-9 -O dnodesize=auto -O relatime=on -O xattr=sa -O normalization=formD"
-c_default_hostname=terem
+c_default_hostname=fi-yuki
 c_zfs_mount_dir=/mnt
 c_log_dir=$(dirname "$(mktemp)")/zfs-hetzner-vm
 c_install_log=$c_log_dir/install.log
@@ -238,7 +238,7 @@ function select_disks {
       menu_entries_option+=("$disk_id" "($block_device_basename)" "$disk_selection_status")
     done
 
-    local dialog_message="Select the ZFS devices (multiple selections can be in mirror or strip).
+    local dialog_message="Select the ZFS devices (multiple selections can be in raidz1 or strip).
 
 Devices with mounted partitions, cdroms, and removable devices are not displayed!
 "
@@ -532,8 +532,8 @@ echo "======= create zfs pools and datasets =========="
 
   pools_mirror_option=
   if [[ ${#v_selected_disks[@]} -gt 1 ]]; then
-    if dialog --defaultno --yesno "Do you want to use mirror mode for ${v_selected_disks[@]}?" 30 100; then 
-      pools_mirror_option=mirror
+    if dialog --defaultno --yesno "Do you want to use raidz1 mode for ${v_selected_disks[@]}?" 30 100; then 
+      pools_mirror_option=raidz1
     fi
   fi
 
@@ -627,8 +627,6 @@ Address=${ip6addr_prefix}:1/64
 Gateway=fe80::1
 CONF
 chroot_execute "systemctl enable systemd-networkd.service"
-chroot_execute "systemctl enable systemd-resolved.service"
-
 
 cp /etc/resolv.conf $c_zfs_mount_dir/etc/resolv.conf
 
@@ -646,6 +644,8 @@ deb $c_deb_packages_repo bookworm-backports main contrib non-free non-free-firmw
 CONF
 
 chroot_execute "apt update"
+chroot_execute "apt install --yes -qq systemd-resolved"
+chroot_execute "systemctl enable systemd-resolved.service"
 
 echo "======= setting locale, console and language =========="
 chroot_execute "apt install --yes -qq locales debconf-i18n apt-utils"
